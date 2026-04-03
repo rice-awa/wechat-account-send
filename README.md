@@ -58,7 +58,8 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://gitee.com/nnnu51317/wechat-account-send.git
+cd skill
+git clone https://github.com/lianghaoxun/wechat-account-send.git
 cd wechat-account-send
 ```
 
