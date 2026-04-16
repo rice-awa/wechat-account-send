@@ -50,7 +50,23 @@ clawhub install wechat-account-send
 - **分步上传流程**: 严格遵循微信API的三步上传规范
 - **安全密钥管理**: 自动生成和编码AES密钥
 
-## 安装步骤
+### Hermes Agent 支持
+
+本项目支持 [Hermes Agent](https://github.com/new TerminologyX/hermes-agent) 智能体框架。
+
+Hermes 用户可通过以下方式自动发现配置：
+
+```bash
+# 自动模式 - 从 Hermes 配置读取凭证（无需手动传入 account_id）
+python scripts/main_send_msg.py --auto "你好"
+python scripts/main_send_file.py --auto /path/to/image.jpg
+```
+
+**Hermes 配置文件位置：**
+- `~/.hermes/weixin/accounts/`（Hermes Agent 环境）
+- `~/.openclaw/openclaw-weixin/accounts/`（OpenClaw 环境）
+
+
 
 ### 环境要求
 
@@ -76,7 +92,19 @@ pip install -r requirements.txt
 
 ### 命令行调用
 
-#### 发送文本消息
+#### 自动模式（推荐用于 Hermes 用户）
+
+```bash
+# 发送文本消息（自动发现配置）
+python scripts/main_send_msg.py --auto "这是发送的消息"
+
+# 发送文件（自动发现配置）
+python scripts/main_send_file.py --auto "测试图片.jpg"
+```
+
+#### 手动模式（传统 OpenClaw 用户）
+
+##### 发送文本消息
 
 ```bash
 python scripts/main_send_msg.py <account_id> <message>
@@ -294,8 +322,8 @@ API 返回码 (ret): 0
 ```
 wechat-account-send/
 ├── scripts/
-│   ├── main_send_file.py    # 文件发送主程序
-│   └── main_send_msg.py     # 消息发送主程序
+│   ├── main_send_file.py    # 文件发送主程序（支持 Hermes --auto 模式）
+│   └── main_send_msg.py     # 消息发送主程序（支持 Hermes --auto 模式）
 ├── 使用示范.assets/         # 示例图片资源
 ├── 使用示范.md              # 详细使用说明
 ├── SKILL.md                 # 技能文档

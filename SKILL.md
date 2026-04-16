@@ -83,6 +83,17 @@ python scripts/main_send_msg "6e2f83e62b99-im-bot" "这是发送的消息"
   2.  调用文件发送程序，将文件发送至目标机器人账号。
 
 #### 命令行调用方式
+
+**自动模式（Hermes 用户推荐）：**
+```bash
+# 发送图片
+python scripts/main_send_file.py --auto "/home/测试图片.jpg"
+
+# 发送视频
+python scripts/main_send_file.py --auto "/home/测试视频.mp4"
+```
+
+**手动模式（OpenClaw 用户）：**
 ```bash
 # 发送图片
 python scripts/main_send_file.py "XXXXXXX-im-bot" "/home/测试图片.jpg"
@@ -157,15 +168,41 @@ python scripts/main_send_file.py "XXXXXXX-im-bot" "/home/测试音频.mp3"
 - 压缩文件：zip, rar, 7z 等
 
 ### 配置文件位置
-账号配置文件默认存放在以下位置：
-- Windows: `C:\Users\用户名\.openclaw\openclaw-weixin\accounts`
-- Linux/MacOS: `~/.openclaw/openclaw-weixin/accounts`
+账号配置文件支持多平台自动检测：
+
+**支持多环境配置：**
+- Hermes Agent: `~/.hermes/weixin/accounts`
+- OpenClaw: `~/.openclaw/openclaw-weixin/accounts`
 
 ### 自动路径检测
-技能现在通过 `get_openclaw_path()` 函数实现自动路径检测：
-1.  优先检测环境变量 `OPENCLAW_STATE_DIR`
-2.  如果未设置环境变量，使用默认路径
-3.  支持 Windows、Linux 和 macOS 平台
+技能通过双路径检测函数实现自动配置发现：
+
+**Hermes 路径检测：**
+```python
+def get_hermes_path():
+    """获取 Hermes 配置路径"""
+    home = Path.home()
+    return home / '.hermes'
+```
+
+**OpenClaw 路径检测：**
+```python
+def get_openclaw_path():
+    """获取 OpenClaw 安装路径，支持 Windows、Linux、MacOS"""
+    state_dir = os.environ.get('OPENCLAW_STATE_DIR')
+    if state_dir and os.path.exists(state_dir):
+        return Path(state_dir)
+    home = Path.home()
+    if sys.platform == 'win32':
+        return home / '.openclaw'
+    else:
+        return home / '.openclaw'
+```
+
+**检测说明：**
+- 检测 Hermes 路径 `~/.hermes/weixin/accounts`
+- 检测 OpenClaw 路径 `~/.openclaw/openclaw-weixin/accounts`
+- 支持环境变量 `OPENCLAW_STATE_DIR` 自定义 OpenClaw 路径
 
 ### 错误处理
 常见错误及解决方法：
@@ -246,6 +283,7 @@ API 返回码 (ret): 0
 ## 版本历史
 | 版本 | 更新日期 | 更新内容 |
 | :--- | :--- | :--- |
+| 5.0.0 | 2026-04-16 | **新增 Hermes Agent 支持**，支持 `--auto` 自动模式，双路径检测适配不同环境。 |
 | 4.0.0 | 2026-04-03 | **新增文件发送功能**，支持图片、视频、音频、文档、压缩文件等多种格式文件发送。 |
 | 3.0.0 | 2026-04-02 | 新增主动消息发送功能，支持向指定用户发送消息；添加自动路径检测功能 |
 | 2.0.0 | 2026-04-01 | 改用sessions_list工具查询会话信息 |
@@ -275,10 +313,15 @@ API 返回码 (ret): 0
 5.  处理API响应，返回发送结果。
 
 #### 自动路径检测原理
+技能通过 `get_openclaw_path()` 函数实现自动路径检测：
+1. 支持环境变量 `OPENCLAW_STATE_DIR` 自定义路径
+2. 如果未设置环境变量，使用默认路径
+3. 支持 Windows、Linux 和 macOS 平台
+
 ```python
 def get_openclaw_path():
-    """获取OpenClaw安装路径，支持Windows、Linux、MacOS"""
-    # 优先使用环境变量指定的路径
+    """获取 OpenClaw 安装路径，支持 Windows、Linux、MacOS"""
+    # 支持环境变量指定的路径
     state_dir = os.environ.get('OPENCLAW_STATE_DIR')
     if state_dir and os.path.exists(state_dir):
         return Path(state_dir)

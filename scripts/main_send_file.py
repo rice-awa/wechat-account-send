@@ -14,9 +14,14 @@ import requests
 import uuid
 import sys
 
+def get_hermes_path():
+    """获取 Hermes 配置路径"""
+    home = Path.home()
+    return home / '.hermes'
+
 def get_openclaw_path():
-    """获取OpenClaw安装路径，支持Windows、Linux、MacOS"""
-    # 优先使用环境变量指定的路径
+    """获取 OpenClaw 安装路径，支持 Windows、Linux、MacOS"""
+    # 支持环境变量指定的路径
     state_dir = os.environ.get('OPENCLAW_STATE_DIR')
     if state_dir and os.path.exists(state_dir):
         return Path(state_dir)
@@ -29,31 +34,52 @@ def get_openclaw_path():
     else:
         # Linux/MacOS: ~/.openclaw
         return home / '.openclaw'
-    
 
-def find_account_json(account_id,use_path=False):
-    """根据账号ID查找对应的JSON文件并返回内容"""
+def find_account_json(account_id, use_path=False):
+    """
+    根据账号ID查找对应的JSON文件并返回内容。
+    优先从 Hermes 路径读取，fallback 到 OpenClaw 路径。
+    """
     try:
         if use_path:
-            openclaw_path = use_path
+            base_path = Path(use_path)
         else:
-            # 获取OpenClaw路径
+            # 检查 Hermes 路径
+            hermes_path = get_hermes_path()
+            hermes_weixin_path = hermes_path / 'weixin' / 'accounts'
             openclaw_path = get_openclaw_path()
-        # 构建openclaw-weixin/accounts路径
-        weixin_accounts_path = os.path.join( openclaw_path,'openclaw-weixin','accounts')
-        # 检查路径是否存在
-        if not os.path.exists(weixin_accounts_path):
-            return {"error": f"路径不存在: {weixin_accounts_path} 你可以设置一个测试地址use_path" }
+            openclaw_weixin_path = openclaw_path / 'openclaw-weixin' / 'accounts'
+            
+            # 适配不同环境，任一路径存在即可
+            if hermes_weixin_path.exists():
+                base_path = hermes_path
+                accounts_path = hermes_weixin_path
+            elif openclaw_weixin_path.exists():
+                base_path = openclaw_path
+                accounts_path = openclaw_weixin_path
+            else:
+                return {"error": f"微信配置路径不存在: \n  Hermes: {hermes_weixin_path}\n  OpenClaw: {openclaw_weixin_path}"}
+        
+        # 构建完整路径
+        weixin_accounts_path = base_path / 'weixin' / 'accounts'
+        # 如果是 OpenClaw 路径
+        if not weixin_accounts_path.exists():
+            weixin_accounts_path = base_path / 'openclaw-weixin' / 'accounts'
+        
+        if not weixin_accounts_path.exists():
+            return {"error": f"微信账号路径不存在: {weixin_accounts_path}"}
+        
         datas = {}
-        for file_json in [account_id,account_id+".context-tokens",account_id+".sync"]:
-            # 构建JSON文件路径
-            json_file = os.path.join(weixin_accounts_path,f"{file_json}.json")
-            # 读取并返回JSON内容
-            with open(json_file, 'r', encoding='utf-8') as f:
-                datas[file_json] = json.load(f)
+        for file_suffix in ['', '.context-tokens', '.sync']:
+            json_file = weixin_accounts_path / f"{account_id}{file_suffix}.json"
+            if json_file.exists():
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    key = account_id + file_suffix if file_suffix else account_id
+                    datas[key] = json.load(f)
+        
         return {
             "account_id": account_id,
-            "file_path": str(json_file),
+            "file_path": str(weixin_accounts_path),
             "data": datas
         }
         
@@ -498,32 +524,89 @@ def send_weixin_file(BOT_TOKEN,TARGET_USER_ID,CONTEXT_TOKEN,IMAGE_PATH):
             print(f"❌ 请求失败，HTTP状态码非200。")
             print(f"响应内容: {response.text[:500]}")  # 打印前500字符以便调试
 
-def main():
-    """主函数：从命令行参数获取账号ID并返回JSON"""
-    if len(sys.argv) != 3:
-        print("用法: python script.py <account_id> <msg>")
-        print("示例: python script.py wechat_12345 你好")
-        sys.exit(1)
+def find_hermes_weixin_account():
+    """自动查找 Hermes 微信配置"""
+    hermes_path = get_hermes_path()
+    weixin_accounts_path = hermes_path / 'weixin' / 'accounts'
     
-    account_id = sys.argv[1]
-    IMAGE_PATH = sys.argv[2]
-    result = find_account_json(account_id)
-    result = result["data"]
-    # ==================== 配置区 (请根据您的实际情况修改) ====================
-    # 1. 基础API地址 (从扫码登录后的账户配置中获取)
-    BASE_URL = result[f"{account_id}"]["baseUrl"]  # 请替换为您的有效 baseUrl
-    # 2. 机器人令牌 (Bot Token)
-    BOT_TOKEN = result[f"{account_id}"]["token"]  # 请替换为您的有效 token
-    # 3. 消息接收方用户ID
-    TARGET_USER_ID = result[f"{account_id}"]["userId"]  # 请替换为目标用户的 userId 
-    # 4. 会话上下文令牌 (Context Token)
-    CONTEXT_TOKEN = result[f"{account_id}.context-tokens"][result[f"{account_id}"]["userId"]]
-    send_weixin_file(BOT_TOKEN,TARGET_USER_ID,CONTEXT_TOKEN,IMAGE_PATH)
+    if not weixin_accounts_path.exists():
+        return None
+    
+    for f in weixin_accounts_path.iterdir():
+        if f.suffix == '.json' and f.name.endswith('.bot.json'):
+            return f.stem
+        elif f.suffix == '.json' and not f.name.endswith('.context-tokens.json') and not f.name.endswith('.sync.json'):
+            if f.name == 'wechat_account.json':
+                continue
+            return f.stem
+    return None
+
+def main():
+    """主函数：支持命令行参数或自动从 Hermes/OpenClaw 配置读取"""
+    hermes_account_id = find_hermes_weixin_account()
+    
+    if len(sys.argv) == 3 and sys.argv[1] == '--auto':
+        if not hermes_account_id:
+            print("❌ 未找到 Hermes 微信配置")
+            sys.exit(1)
+        
+        print(f"使用 Hermes 配置自动发现账号: {hermes_account_id}")
+        result = find_account_json(hermes_account_id)
+        if "error" in result:
+            print(f"❌ {result['error']}")
+            sys.exit(1)
+        
+        data = result["data"]
+        bot_config = data.get(hermes_account_id, {})
+        token = bot_config.get('token', '')
+        user_id = bot_config.get('user_id', '')
+        
+        context_tokens_file = hermes_account_id + '.context-tokens.json'
+        context_token = ''
+        if context_tokens_file in data:
+            context_tokens_data = data[context_tokens_file]
+            if context_tokens_data:
+                context_token = list(context_tokens_data.values())[0]
+        
+        if not token:
+            print("❌ 未找到 token 配置")
+            sys.exit(1)
+        
+        print(f"Token: {token[:10]}...")
+        print(f"User ID: {user_id}")
+        
+        FILE_PATH = sys.argv[2]
+        send_weixin_file(token, user_id, context_token, FILE_PATH)
+        
+    elif len(sys.argv) == 5:
+        BOT_TOKEN = sys.argv[1]
+        TARGET_USER_ID = sys.argv[2]
+        CONTEXT_TOKEN = sys.argv[3]
+        FILE_PATH = sys.argv[4]
+        send_weixin_file(BOT_TOKEN, TARGET_USER_ID, CONTEXT_TOKEN, FILE_PATH)
+        
+    elif len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help']:
+        print("微信文件发送脚本")
+        print("")
+        print("用法:")
+        print("  python3 main_send_file.py --auto <文件路径>   # 从 Hermes 配置自动读取")
+        print("  python3 main_send_file.py <token> <user_id> <context_token> <文件路径>")
+        print("")
+        print("示例:")
+        print("  python3 main_send_file.py --auto /path/to/image.jpg")
+        print("  python3 main_send_file.py <token> <user_id> <context_token> /path/to/image.jpg")
+        sys.exit(0)
+        
+    else:
+        print("用法:")
+        print("  python3 main_send_file.py --auto <文件路径>   # 从 Hermes 配置自动读取")
+        print("  python3 main_send_file.py <token> <user_id> <context_token> <文件路径>")
+        print("")
+        print("示例:")
+        print("  python3 main_send_file.py --auto /path/to/image.jpg")
+        print("  python3 main_send_file.py <token> <user_id> <context_token> /path/to/image.jpg")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
-    # 调用方法
-    # python main_send_file.py XXXXXXXXXXXX-im-bot "测试文件.txt"
-    # python main_send_file.py XXXXXXXXXXXX-im-bot "测试视频.txt"
-    # python main_send_file.py XXXXXXXXXXXX-im-bot "测试图片.txt"
 
