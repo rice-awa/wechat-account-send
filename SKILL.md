@@ -1,13 +1,13 @@
 ---
 name: wechat-account-send
-version: 4.0.0
-description:  This skill provides integrated WeChat account management, message delivery, and file transmission capabilities. It supports querying current user account information and actively sending text messages or various file types (including images, videos, audio, and documents) to specified WeChat contacts or groups when invoked through OpenClaw. The functionality enables complete operation execution for user-driven communication and sharing tasks.
+version: 5.1.0
+description: Use when a user needs to query WeChat account/session information or send text messages, images, videos, audio, documents, archives, or other local files through a WeChat contact/group from OpenClaw or Hermes Agent.
 ---
 
 
 # 微信账号消息发送 Skill
 
-使用 OpenClaw 的微信集成功能，实现微信账号信息查询、会话管理、主动文本消息和文件发送功能。
+使用 OpenClaw/Hermes Agent 复用的微信插件能力，实现微信账号信息查询、会话管理、主动文本消息和文件发送功能。
 调用时机：当用户需要查询当前微信账户信息，或主动向指定微信联系人/群组发送消息时,通过微信发送文件即可触发。
 
 ## 功能说明
@@ -36,11 +36,13 @@ description:  This skill provides integrated WeChat account management, message 
 
 #### 列出所有活跃会话
 当用户要求列出所有会话时，调用 sessions_list 工具：
+```python
 sessions_list()
 ```
 
 #### 找到当前对话
 当用户要求找到我们之间的对话时：
+```python
 # 获取所有会话
 sessions_list()
 # 过滤出微信渠道的会话
@@ -49,6 +51,7 @@ sessions_list()
 
 #### 获取会话详情
 使用 sessions_list 的参数来获取更详细的信息：
+```python
 # 获取最近活跃的会话
 sessions_list(activeMinutes=60, messageLimit=5)
 ```
@@ -57,12 +60,16 @@ sessions_list(activeMinutes=60, messageLimit=5)
 
 #### 命令行调用方式
 ```bash
-python scripts/main_send_msg <account_id> <message>
+python scripts/main_send_msg.py --auto <message>
+```
+
+```bash
+python scripts/main_send_msg.py <account_id> <message>
 ```
 
 #### 示例
 ```bash
-python scripts/main_send_msg "6e2f83e62b99-im-bot" "这是发送的消息"
+python scripts/main_send_msg.py "6e2f83e62b99-im-bot" "这是发送的消息"
 ```
 
 ### 3. 文件发送功能 (新增)
@@ -84,8 +91,11 @@ python scripts/main_send_msg "6e2f83e62b99-im-bot" "这是发送的消息"
 
 #### 命令行调用方式
 
-**自动模式（Hermes 用户推荐）：**
+**自动模式（OpenClaw / Hermes Agent 通用）：**
 ```bash
+# 发送文本消息
+python scripts/main_send_msg.py --auto "这是发送的消息"
+
 # 发送图片
 python scripts/main_send_file.py --auto "/home/测试图片.jpg"
 
@@ -93,8 +103,11 @@ python scripts/main_send_file.py --auto "/home/测试图片.jpg"
 python scripts/main_send_file.py --auto "/home/测试视频.mp4"
 ```
 
-**手动模式（OpenClaw 用户）：**
+**手动模式：**
 ```bash
+# 发送文本消息
+python scripts/main_send_msg.py "XXXXXXX-im-bot" "这是发送的消息"
+
 # 发送图片
 python scripts/main_send_file.py "XXXXXXX-im-bot" "/home/测试图片.jpg"
 
@@ -139,7 +152,7 @@ python scripts/main_send_file.py "XXXXXXX-im-bot" "/home/测试音频.mp3"
 ## 注意事项
 
 ### 使用前准备
-1.  **环境配置**：确保已正确安装 OpenClaw 并完成微信账号登录。
+1.  **环境配置**：确保已正确安装 OpenClaw 或 Hermes Agent，并完成微信账号登录。
 2.  **账号配置**：确保账号ID对应的配置文件存在于正确的位置。
 3.  **依赖安装**：确保已安装所需的 Python 依赖包（`requests`, `uuid`, `pathlib` 等）。
 
@@ -174,43 +187,28 @@ python scripts/main_send_file.py "XXXXXXX-im-bot" "/home/测试音频.mp3"
 - Hermes Agent: `~/.hermes/weixin/accounts`
 - OpenClaw: `~/.openclaw/openclaw-weixin/accounts`
 
+### Skill 目录参考
+- OpenClaw 使用当前 skill 项目的 `SKILL.md` 与 `scripts/`。
+- Hermes Agent 官方文档使用 `skills/<category>/<skill>/SKILL.md` 结构，并支持在 skill 内放置 `scripts/` 辅助脚本。
+- Hermes Agent 官方配置文档说明用户配置集中存放在 `~/.hermes/`，其中包含 `skills/` 等目录。
+
 ### 自动路径检测
-技能通过双路径检测函数实现自动配置发现：
-
-**Hermes 路径检测：**
-```python
-def get_hermes_path():
-    """获取 Hermes 配置路径"""
-    home = Path.home()
-    return home / '.hermes'
-```
-
-**OpenClaw 路径检测：**
-```python
-def get_openclaw_path():
-    """获取 OpenClaw 安装路径，支持 Windows、Linux、MacOS"""
-    state_dir = os.environ.get('OPENCLAW_STATE_DIR')
-    if state_dir and os.path.exists(state_dir):
-        return Path(state_dir)
-    home = Path.home()
-    if sys.platform == 'win32':
-        return home / '.openclaw'
-    else:
-        return home / '.openclaw'
-```
+技能通过 `scripts/wechat_common.py` 统一发现账号配置。`--auto` 会扫描 Hermes Agent 与 OpenClaw 的账号目录，并选择最近更新的账号配置：
 
 **检测说明：**
 - 检测 Hermes 路径 `~/.hermes/weixin/accounts`
 - 检测 OpenClaw 路径 `~/.openclaw/openclaw-weixin/accounts`
 - 支持环境变量 `OPENCLAW_STATE_DIR` 自定义 OpenClaw 路径
+- 支持 `userId` 和 `user_id` 两种账号字段名
 
 ### 错误处理
 常见错误及解决方法：
 
 | 错误类型 | 可能原因 | 解决方法 |
 | :--- | :--- | :--- |
-| 路径不存在 | OpenClaw路径配置错误 | 检查 OpenClaw 是否正确安装 |
+| 路径不存在 | OpenClaw/Hermes Agent 路径配置错误 | 检查对应环境是否正确安装并登录微信 |
 | 配置文件缺失 | 账号ID不存在或配置文件损坏 | 重新登录微信账号 |
+| 配置字段缺失 | 缺少 token 或 userId/user_id | 检查账号 JSON 是否完整 |
 | 网络请求异常 | 网络连接失败或API地址错误 | 检查网络连接和API地址配置 |
 | 权限验证失败 | Token失效或权限不足 | 重新获取身份验证令牌 |
 | 文件发送失败 (新增) | 文件路径错误、网络异常、API返回非零状态码、文件类型不支持或大小超限 | 检查文件路径与网络，查看错误日志，确认文件格式与大小 |
@@ -283,7 +281,8 @@ API 返回码 (ret): 0
 ## 版本历史
 | 版本 | 更新日期 | 更新内容 |
 | :--- | :--- | :--- |
-| 5.0.0 | 2026-04-16 | **新增 Hermes Agent 支持**，支持 `--auto` 自动模式，双路径检测适配不同环境。 |
+| 5.1.0 | 2026-04-17 | OpenClaw 与 Hermes Agent 共同支持 `--auto` 自动模式；统一配置发现；增强脚本错误处理。 |
+| 5.0.0 | 2026-04-16 | 增加 Hermes Agent 环境适配，支持 `--auto` 自动模式与双路径检测。 |
 | 4.0.0 | 2026-04-03 | **新增文件发送功能**，支持图片、视频、音频、文档、压缩文件等多种格式文件发送。 |
 | 3.0.0 | 2026-04-02 | 新增主动消息发送功能，支持向指定用户发送消息；添加自动路径检测功能 |
 | 2.0.0 | 2026-04-01 | 改用sessions_list工具查询会话信息 |
@@ -313,28 +312,12 @@ API 返回码 (ret): 0
 5.  处理API响应，返回发送结果。
 
 #### 自动路径检测原理
-技能通过 `get_openclaw_path()` 函数实现自动路径检测：
-1. 支持环境变量 `OPENCLAW_STATE_DIR` 自定义路径
-2. 如果未设置环境变量，使用默认路径
-3. 支持 Windows、Linux 和 macOS 平台
-
-```python
-def get_openclaw_path():
-    """获取 OpenClaw 安装路径，支持 Windows、Linux、MacOS"""
-    # 支持环境变量指定的路径
-    state_dir = os.environ.get('OPENCLAW_STATE_DIR')
-    if state_dir and os.path.exists(state_dir):
-        return Path(state_dir)
-
-    # 默认路径
-    home = Path.home()
-    if sys.platform == 'win32':
-        # Windows: C:\Users\用户名\.openclaw
-        return home / '.openclaw'
-    else:
-        # Linux/MacOS: ~/.openclaw
-        return home / '.openclaw'
-```
+技能通过 `scripts/wechat_common.py` 实现统一自动路径检测：
+1. 扫描 `~/.hermes/weixin/accounts`
+2. 扫描 `~/.openclaw/openclaw-weixin/accounts`
+3. 支持环境变量 `OPENCLAW_STATE_DIR` 自定义 OpenClaw 路径
+4. 选择最近更新的账号配置用于 `--auto`
+5. 校验 `token`、`userId/user_id` 等必填字段
 ### 架构设计
 ```
 
@@ -371,8 +354,9 @@ def get_openclaw_path():
 wechat-account-send/
 ├── SKILL.md                 # 技能文档
 ├── scripts/
-│   ├── main_send_msg        # 文本消息发送主程序
-│   └── main_send_file.py    # (新增) 文件发送主程序
+│   ├── wechat_common.py     # OpenClaw/Hermes Agent 配置发现与校验
+│   ├── main_send_msg.py     # 文本消息发送主程序
+│   └── main_send_file.py    # 文件发送主程序
 └── (其他配置文件)
 
 ### 2. 自动路径检测

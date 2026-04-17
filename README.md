@@ -1,13 +1,13 @@
 # 微信账号消息发送工具
 
-使用 OpenClaw 的微信集成功能，实现微信账号信息查询、会话管理、主动文本消息和文件发送功能。
+使用 OpenClaw/Hermes Agent 复用的微信插件能力，实现微信账号信息查询、会话管理、主动文本消息和文件发送功能。
 可以通过clawhub命令安装
 ```bash
 clawhub install wechat-account-send
 ```
 ## 项目概述
 
-本项目提供了一套完整的微信消息和文件发送解决方案，支持通过 OpenClaw 微信插件与微信后端API进行交互。该工具可以帮助开发者和用户实现自动化的微信消息和文件发送功能。
+本项目提供了一套完整的微信消息和文件发送解决方案，支持通过微信插件与微信后端 API 进行交互。OpenClaw 与 Hermes Agent 使用的微信插件能力本质一致，脚本会自动发现两类环境下的账号配置。
 
 ## 功能演示
 
@@ -50,23 +50,25 @@ clawhub install wechat-account-send
 - **分步上传流程**: 严格遵循微信API的三步上传规范
 - **安全密钥管理**: 自动生成和编码AES密钥
 
-### Hermes Agent 支持
+### OpenClaw / Hermes Agent 支持
 
-本项目支持 [Hermes Agent](https://github.com/new TerminologyX/hermes-agent) 智能体框架。
+本项目同时支持 OpenClaw 与 [Hermes Agent](https://hermes-agent.nousresearch.com/) 智能体框架。
 
-Hermes 用户可通过以下方式自动发现配置：
+两种环境都可以使用 `--auto` 自动发现配置，无需手动传入 `account_id`：
 
 ```bash
-# 自动模式 - 从 Hermes 配置读取凭证（无需手动传入 account_id）
+# 自动模式 - 自动读取 Hermes Agent/OpenClaw 配置
 python scripts/main_send_msg.py --auto "你好"
 python scripts/main_send_file.py --auto /path/to/image.jpg
 ```
 
-**Hermes 配置文件位置：**
+**账号配置文件位置：**
 - `~/.hermes/weixin/accounts/`（Hermes Agent 环境）
 - `~/.openclaw/openclaw-weixin/accounts/`（OpenClaw 环境）
 
-
+**Skill 目录参考：**
+- Hermes Agent 官方文档使用 `skills/<category>/<skill>/SKILL.md` 结构，并支持在 skill 内放置 `scripts/` 辅助脚本。
+- Hermes Agent 官方配置文档说明用户配置集中存放在 `~/.hermes/`，其中包含 `skills/` 等目录。
 
 ### 环境要求
 
@@ -92,7 +94,7 @@ pip install -r requirements.txt
 
 ### 命令行调用
 
-#### 自动模式（推荐用于 Hermes 用户）
+#### 自动模式（OpenClaw / Hermes Agent 通用）
 
 ```bash
 # 发送文本消息（自动发现配置）
@@ -102,7 +104,7 @@ python scripts/main_send_msg.py --auto "这是发送的消息"
 python scripts/main_send_file.py --auto "测试图片.jpg"
 ```
 
-#### 手动模式（传统 OpenClaw 用户）
+#### 手动模式
 
 ##### 发送文本消息
 
@@ -131,6 +133,12 @@ python scripts/main_send_file.py "6e2f83e62b99-im-bot" "测试文档.pdf"
 python scripts/main_send_file.py "6e2f83e62b99-im-bot" "测试音频.mp3"
 ```
 
+底层调试模式也保留直接传凭证的方式：
+
+```bash
+python scripts/main_send_file.py <token> <user_id> <context_token> <文件路径>
+```
+
 ### 代码集成示例
 
 ```python
@@ -151,7 +159,6 @@ else:
     
     # 获取发送文件所需的配置
     result = account_info["data"]
-    BASE_URL = result[f"{account_id}"]["baseUrl"]
     BOT_TOKEN = result[f"{account_id}"]["token"]
     TARGET_USER_ID = result[f"{account_id}"]["userId"]
     CONTEXT_TOKEN = result[f"{account_id}.context-tokens"][TARGET_USER_ID]
@@ -191,7 +198,7 @@ def send_weixin_file(BOT_TOKEN, TARGET_USER_ID, CONTEXT_TOKEN, IMAGE_PATH):
 - **1**: 图片消息类型
 - **2**: 视频消息类型  
 - **3**: 文件消息类型
-- **4**: 音频消息类型
+- 音频文件当前按普通文件消息发送
 
 #### 文件加密处理
 
@@ -322,8 +329,10 @@ API 返回码 (ret): 0
 ```
 wechat-account-send/
 ├── scripts/
-│   ├── main_send_file.py    # 文件发送主程序（支持 Hermes --auto 模式）
-│   └── main_send_msg.py     # 消息发送主程序（支持 Hermes --auto 模式）
+│   ├── wechat_common.py     # OpenClaw/Hermes 配置发现与校验
+│   ├── main_send_file.py    # 文件发送主程序（支持通用 --auto 模式）
+│   └── main_send_msg.py     # 消息发送主程序（支持通用 --auto 模式）
+├── tests/                   # 单元测试
 ├── 使用示范.assets/         # 示例图片资源
 ├── 使用示范.md              # 详细使用说明
 ├── SKILL.md                 # 技能文档
