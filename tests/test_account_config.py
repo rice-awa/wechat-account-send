@@ -143,6 +143,66 @@ class AccountConfigTests(unittest.TestCase):
         self.assertFalse(result)
         post.assert_not_called()
 
+    def test_text_send_treats_empty_json_200_as_success(self):
+        class FakeResponse:
+            status_code = 200
+            text = "{}"
+
+            def json(self):
+                return {}
+
+        with mock.patch.object(sys.modules["requests"], "post", return_value=FakeResponse()):
+            stdout = io.StringIO()
+            with mock.patch("sys.stdout", stdout):
+                result = main_send_msg.send_weixin_message(
+                    "https://example.invalid",
+                    "token",
+                    "user",
+                    "context",
+                    "hello",
+                )
+
+        self.assertTrue(result)
+
+    def test_file_send_treats_empty_json_200_as_success(self):
+        image_path = self.home / "image.png"
+        image_path.write_bytes(b"not-a-real-png-but-good-enough")
+
+        class FakeResponse:
+            status_code = 200
+            text = "{}"
+
+            def json(self):
+                return {}
+
+        with mock.patch.object(main_send_file, "prepare_image_upload", return_value={
+            "success": True,
+            "filekey": "a" * 32,
+            "aeskey_hex": "b" * 32,
+            "rawsize": 32,
+            "rawfilemd5": "c" * 32,
+            "filesize": 48,
+            "file_data": b"data",
+        }), mock.patch.object(main_send_file, "get_upload_params", return_value={
+            "success": True,
+            "upload_param": "upload-param",
+        }), mock.patch.object(main_send_file, "aes_encrypt_file", return_value=b"encrypted"), mock.patch.object(
+            main_send_file, "upload_to_cdn", return_value={
+                "success": True,
+                "encrypt_query_param": "encrypt-param",
+            }
+        ), mock.patch.object(sys.modules["requests"], "post", return_value=FakeResponse()):
+            stdout = io.StringIO()
+            with mock.patch("sys.stdout", stdout):
+                result = main_send_file.send_weixin_file(
+                    "token",
+                    "user",
+                    "context",
+                    str(image_path),
+                )
+
+        self.assertTrue(result)
+
 
 if __name__ == "__main__":
     unittest.main()

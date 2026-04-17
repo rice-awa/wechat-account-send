@@ -558,6 +558,9 @@ def send_weixin_file(BOT_TOKEN,TARGET_USER_ID,CONTEXT_TOKEN,IMAGE_PATH):
             print(f"API 返回码 (ret): {resp_json.get('ret')}")
             print("服务器响应详情:")
             print(json.dumps(resp_json, indent=2, ensure_ascii=False))
+            if resp_json == {}:
+                print("✅ 文件发送成功！（接口返回空对象，按 HTTP 200 兼容处理）")
+                return True
             if resp_json.get("ret") == 0:
                 print("✅ 文件发送成功！")
                 return True
